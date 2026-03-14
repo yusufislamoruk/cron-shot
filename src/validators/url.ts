@@ -1,15 +1,14 @@
-export function isValidUrl(input:string):boolean{
-    if(!input) return false;
+export function isValidUrl(input: string): boolean {
+    if (!input) return false;
 
     try {
         const url = new URL(input);
 
-        if(url.protocol !== "http:" && url.protocol !=="https:"){
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
             return false;
         }
         return true;
-    }
-    catch (error){
+    } catch {
         return false;
     }
 }

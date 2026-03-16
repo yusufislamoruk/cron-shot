@@ -18,7 +18,7 @@ export const uploadScreenshot = async (buffer: Buffer): Promise<UploadResult> =>
     try {
         await s3Client.send(command);
 
-        const s3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonws.com/${s3Key}`;
+        const s3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
 
         return {
             s3_key: s3Key,
@@ -28,4 +28,4 @@ export const uploadScreenshot = async (buffer: Buffer): Promise<UploadResult> =>
         console.error("[uploader] S3 upload failed:", error);
         throw error;
     }
-};
+}

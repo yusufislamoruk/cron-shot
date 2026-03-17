@@ -4,11 +4,13 @@ import { isValidUrl } from "../validators/url";
 import { errorResponse } from "../utils/response";
 import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
+import { getAuth } from "@clerk/express";
 
 const router = Router();
 
 router.post("/", async (req: Request, res: Response): Promise<void> => {
     const { url, fullPage, width, height } = req.body;
+    const { userId } = getAuth(req);
 
     if (!url) {
         const err = errorResponse("url is required", 400);
@@ -34,6 +36,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
         const record = await recordScreenshot({
             target_url: url,
+            user_id: userId ?? "",
             width: width ?? 1280,
             height: height ?? 800,
             full_page: fullPage ?? true,

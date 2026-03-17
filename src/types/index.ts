@@ -5,6 +5,7 @@ export interface UploadResult {
 
 export interface ScreenshotRecord {
     id: string;
+    user_id: string;
     target_url: string;
     width: number;
     height: number;

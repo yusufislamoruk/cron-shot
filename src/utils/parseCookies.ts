@@ -20,8 +20,9 @@ export function parseCookies(cookieString: string, url: string){
         return {
             name: name.trim(),
             value: value.trim(),
-            url: url
+            url: url,
+            domain: new URL(url).hostname,
         };
     })
-    .filter((cookie): cookie is {name: string; value: string; url: string} => cookie !== null);
+    .filter((cookie): cookie is {name: string; value: string; url: string; domain: string} => cookie !== null);
 }

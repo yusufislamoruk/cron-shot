@@ -1,12 +1,8 @@
 import puppeteer, { Browser } from "puppeteer";
 import { PUPPETEER_LAUNCH_OPTIONS, DEFAULT_VIEWPORT, DEFAULT_TIMEOUT } from "../config/puppeteer";
+import { ScreenshotOptions } from "../types";
+import { parseCookies } from "../utils/parseCookies";
 
-export interface ScreenshotOptions{
-    url: string;
-    width?: number;
-    height?: number;
-    fullPage?: boolean;
-}
 
 export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer> {
     const {
@@ -14,6 +10,9 @@ export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer
         width = DEFAULT_VIEWPORT.width,
         height = DEFAULT_VIEWPORT.height,
         fullPage = false,
+        userAgent,
+        authorizationHeader,
+        cookies
     } = options;
 
     let browser: Browser | undefined;
@@ -25,6 +24,22 @@ export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer
 
         await page.setViewport({ width, height })
 
+        if(userAgent){
+            await page.setUserAgent(userAgent);
+        }
+
+        if (authorizationHeader){
+            await page.setExtraHTTPHeaders({
+                Authorization: authorizationHeader
+            });
+        }
+
+        if(cookies){
+            const cookieArray = parseCookies(cookies, url);
+            if(cookieArray.length > 0){
+                await page.browserContext().setCookie(...cookieArray);
+            }
+        }
         await page.goto(url, {
             waitUntil: "networkidle2",
             timeout: DEFAULT_TIMEOUT

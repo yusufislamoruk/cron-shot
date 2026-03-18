@@ -22,8 +22,8 @@ export function validateScreenshotOptions(body: any): ValidationResult {
 
     if (height !== undefined) {
         const h= Number(height);
-        if(isNaN(h) || h<320 || h>3840) {
-            return {valid:false, error:"Height must be a number beetween 320 and 3840"};
+        if(isNaN(h) || h<320 || h>2160) {
+            return {valid:false, error:"Height must be a number beetween 320 and 2160"};
         }
     }
     if(userAgent && userAgent.length >500){

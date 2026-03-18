@@ -1,7 +1,6 @@
 import { Router, Request, Response } from "express";
 import { takeScreenshot } from "../services/screenshotter";
 import { validateScreenshotOptions } from "../validators/screenshot-validator";
-import { isValidUrl } from "../validators/url";
 import { errorResponse } from "../utils/response";
 import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
@@ -43,6 +42,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             full_page: fullPage ?? true,
             s3_key: upload.s3_key,
             s3_url: upload.s3_url,
+            user_agent: userAgent,
+            authorization_header: authorizationHeader,
+            cookies_used: !!cookies,
         });
 
         res.status(201).json({

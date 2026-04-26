@@ -2,8 +2,8 @@ import { Router, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
 import { supabase } from "../config/supabase";
 import { Schedule } from "../types";
-import { errorResponse } from "../utils/response";
 import { validateScheduleOptions } from "../validators/schedule-validator";
+import { getNextRunTime } from "../utils/cron";
 
 const router = Router();
 
@@ -47,7 +47,21 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    res.status(201).json({ success: true, data: record });
+    // Compute and set initial next_run
+    const nextRun = getNextRunTime(schedule);
+    await supabase
+        .from("schedules")
+        .update({ next_run: nextRun.toISOString() })
+        .eq("id", record.id);
+
+    // Refetch to get updated next_run
+    const { data: updated } = await supabase
+        .from("schedules")
+        .select("*")
+        .eq("id", record.id)
+        .single();
+
+    res.status(201).json({ success: true, data: updated || record });
 });
 
 // GET /schedules — List user's schedules
@@ -126,6 +140,13 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
     }
 
     updates.updated_at = new Date().toISOString();
+
+    // Recompute next_run if schedule expression changed
+    const newSchedule = req.body.schedule || existing.schedule;
+    if (req.body.schedule && req.body.schedule !== existing.schedule) {
+        const nextRun = getNextRunTime(newSchedule);
+        updates.next_run = nextRun.toISOString();
+    }
 
     const { data, error } = await supabase
         .from("schedules")

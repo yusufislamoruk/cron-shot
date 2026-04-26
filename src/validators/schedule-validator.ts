@@ -21,8 +21,13 @@ export function validateScheduleOptions(body: any): ScheduleValidationResult {
         return { valid: false, error: "Invalid cron expression. Expected 5 fields: minute hour day month weekday" };
     }
 
-    if (webhook_url && webhook_url.length > 2048) {
-        return { valid: false, error: "Webhook URL is too long (max 2048 characters)" };
+    if (webhook_url) {
+        if (!webhook_url.startsWith("https://")) {
+            return { valid: false, error: "Webhook URL must use HTTPS" };
+        }
+        if (webhook_url.length > 2048) {
+            return { valid: false, error: "Webhook URL is too long (max 2048 characters)" };
+        }
     }
 
     if (width !== undefined) {

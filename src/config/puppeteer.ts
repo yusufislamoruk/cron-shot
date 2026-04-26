@@ -1,3 +1,5 @@
+export const REQUEST_TIMEOUT_MS = 90000;
+
 export const PUPPETEER_LAUNCH_OPTIONS = {
 
     headless: true,

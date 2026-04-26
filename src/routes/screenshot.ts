@@ -5,6 +5,7 @@ import { errorResponse } from "../utils/response";
 import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
 import { getAuth } from "@clerk/express";
+import { REQUEST_TIMEOUT_MS } from "../config/puppeteer";
 
 const router = Router();
 
@@ -22,30 +23,40 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const {url,width,height,fullPage,userAgent,authorizationHeader,cookies} = validation.data;
     try {
-        const buffer = await takeScreenshot({
-            url,
-            fullPage: fullPage,
-            width: width,
-            height: height,
-            userAgent: userAgent,
-            authorizationHeader: authorizationHeader,
-            cookies: cookies,
-        });
-        
-        const upload = await uploadScreenshot(buffer);
+        const screenshotFlow = async () => {
+            const buffer = await takeScreenshot({
+                url,
+                fullPage: fullPage,
+                width: width,
+                height: height,
+                userAgent: userAgent,
+                authorizationHeader: authorizationHeader,
+                cookies: cookies,
+            });
 
-        const record = await recordScreenshot({
-            target_url: url,
-            user_id: userId ?? "",
-            width: width ?? 1280,
-            height: height ?? 800,
-            full_page: fullPage ?? true,
-            s3_key: upload.s3_key,
-            s3_url: upload.s3_url,
-            user_agent: userAgent,
-            authorization_header: authorizationHeader,
-            cookies_used: !!cookies,
+            const upload = await uploadScreenshot(buffer);
+
+            const record = await recordScreenshot({
+                target_url: url,
+                user_id: userId ?? "",
+                width: width ?? 1280,
+                height: height ?? 800,
+                full_page: fullPage ?? true,
+                s3_key: upload.s3_key,
+                s3_url: upload.s3_url,
+                user_agent: userAgent,
+                authorization_header: authorizationHeader,
+                cookies_used: !!cookies,
+            });
+
+            return record;
+        };
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("Request timeout exceeded")), REQUEST_TIMEOUT_MS);
         });
+
+        const record = await Promise.race([screenshotFlow(), timeoutPromise]);
 
         res.status(201).json({
             success: true,

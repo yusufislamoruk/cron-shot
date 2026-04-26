@@ -31,7 +31,7 @@ export interface Schedule {
     id: string;
     user_id: string;
     url: string;
-    schedule: string;
+    cronExpression: string;
     webhook_url?: string;
     width?: number;
     height?: number;

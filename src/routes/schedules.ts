@@ -21,17 +21,17 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    const { url, schedule, webhook_url, width, height, full_page, user_agent, authorization_header, cookies } = validation.data;
+    const { url, cronExpression, webhook_url, width, height, full_page, user_agent, authorization_header, cookies } = validation.data;
 
     // Compute next_run before insert so it's included in the response
-    const nextRun = getNextRunTime(schedule);
+    const nextRun = getNextRunTime(cronExpression);
 
     const { data: record, error } = await supabase
         .from("schedules")
         .insert({
             user_id: userId,
             url,
-            schedule,
+            schedule: cronExpression,
             webhook_url,
             width,
             height,
@@ -54,7 +54,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     res.status(201).json({ success: true, data: record });
 });
 
-// GET /schedules — List user's schedules
+// GET /schedules — List user's schedules (paginated)
 router.get("/", async (req: Request, res: Response): Promise<void> => {
     const { userId } = getAuth(req);
     if (!userId) {
@@ -62,11 +62,21 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    const { data, error } = await supabase
+    const cursor = req.query.cursor as string | undefined;
+    const limit = 100;
+
+    let query = supabase
         .from("schedules")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("user_id", userId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+    if (cursor) {
+        query = query.lt("created_at", cursor);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
         console.error("[schedules] Failed to list schedules:", error);
@@ -74,7 +84,14 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    res.status(200).json({ success: true, data: data || [] });
+    const nextCursor = count === limit ? data?.[data.length - 1]?.created_at : undefined;
+
+    res.status(200).json({
+        success: true,
+        data: data || [],
+        next_cursor: nextCursor,
+        total: count || 0,
+    });
 });
 
 // GET /schedules/:id — Get single schedule
@@ -120,21 +137,22 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    const updates: Partial<Schedule> = {};
-    const allowed = ["url", "schedule", "webhook_url", "width", "height", "full_page", "user_agent", "authorization_header", "cookies", "active"];
+    const updates: Record<string, any> = {};
+    const allowed = ["url", "webhook_url", "width", "height", "full_page", "user_agent", "authorization_header", "cookies", "active"];
 
     for (const key of allowed) {
         if (req.body[key] !== undefined) {
-            (updates as any)[key] = req.body[key];
+            updates[key] = req.body[key];
         }
     }
 
     updates.updated_at = new Date().toISOString();
 
-    // Recompute next_run if schedule expression changed
-    const newSchedule = req.body.schedule || existing.schedule;
-    if (req.body.schedule && req.body.schedule !== existing.schedule) {
-        const nextRun = getNextRunTime(newSchedule);
+    // Handle cronExpression (maps to DB column "schedule")
+    const newCronExpr = req.body.cronExpression;
+    if (newCronExpr && newCronExpr !== existing.schedule) {
+        updates.schedule = newCronExpr;
+        const nextRun = getNextRunTime(newCronExpr);
         updates.next_run = nextRun.toISOString();
     }
 

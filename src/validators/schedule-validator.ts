@@ -65,7 +65,7 @@ export function validateScheduleOptions(body: any): ScheduleValidationResult {
         valid: true,
         data: {
             url,
-            schedule,
+            cronExpression: schedule,
             webhook_url,
             width: width ? Number(width) : undefined,
             height: height ? Number(height) : undefined,

@@ -17,9 +17,12 @@
     "@clerk/express": "^2.0.4",
     "@supabase/supabase-js": "^2.99.2",
     "@types/cors": "^2.8.19",
+    "@types/helmet": "^0.0.48",
     "cors": "^2.8.6",
+    "cron-parser": "^5.5.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "helmet": "^8.1.0",
     "puppeteer": "^24.38.0"
   },
   "devDependencies": {

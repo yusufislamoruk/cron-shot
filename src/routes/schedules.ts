@@ -69,11 +69,11 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         .from("schedules")
         .select("*", { count: "exact" })
         .eq("user_id", userId)
-        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
         .limit(limit);
 
     if (cursor) {
-        query = query.lt("created_at", cursor);
+        query = query.gt("id", cursor);
     }
 
     const { data, error, count } = await query;
@@ -84,7 +84,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    const nextCursor = count === limit ? data?.[data.length - 1]?.created_at : undefined;
+    const nextCursor = count === limit ? data?.[data.length - 1]?.id : undefined;
 
     res.status(200).json({
         success: true,

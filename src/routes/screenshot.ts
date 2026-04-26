@@ -1,10 +1,10 @@
 import { Router, Request, Response } from "express";
 import { takeScreenshot } from "../services/screenshotter";
 import { validateScreenshotOptions } from "../validators/screenshot-validator";
-import { errorResponse } from "../utils/response";
 import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
 import { getAuth } from "@clerk/express";
+import { ScreenshotError, S3UploadError } from "../utils/errors";
 
 const router = Router();
 
@@ -14,9 +14,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     const validation = validateScreenshotOptions(req.body);
 
     if(!validation.valid || !validation.data) {
-        const err = errorResponse(validation.error || "Invalid request body", 400);
-
-        res.status(400).json(err.body);
+        res.status(400).json({ error: validation.error || "Invalid request body" });
         return;
     }
 
@@ -54,11 +52,15 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         });
 
     } catch (error) {
-        console.error("Screenshot attempt failed:");
-        console.error(error);
+        console.error("Screenshot attempt failed:", error);
 
-        const err = errorResponse("Failed to take screenshot", 500);
-        res.status(500).json(err.body);
+        if (error instanceof ScreenshotError) {
+            res.status(502).json({ error: "Screenshot service unavailable", code: error.code });
+        } else if (error instanceof S3UploadError) {
+            res.status(502).json({ error: "Storage service unavailable", code: error.code });
+        } else {
+            res.status(500).json({ error: "Internal server error" });
+        }
     }
 });
 

@@ -2,6 +2,7 @@ import puppeteer, { Browser } from "puppeteer";
 import { PUPPETEER_LAUNCH_OPTIONS, DEFAULT_VIEWPORT, DEFAULT_TIMEOUT } from "../config/puppeteer";
 import { ScreenshotOptions } from "../types";
 import { parseCookies } from "../utils/parseCookies";
+import { ScreenshotError } from "../utils/errors";
 
 
 export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer> {
@@ -18,7 +19,7 @@ export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer
     let browser: Browser | undefined;
 
     try {
-        browser = await puppeteer.launch(PUPPETEER_LAUNCH_OPTIONS); 
+        browser = await puppeteer.launch(PUPPETEER_LAUNCH_OPTIONS);
 
         const page = await browser.newPage();
 
@@ -51,6 +52,11 @@ export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer
         })
 
         return Buffer.from(screenshot);
+    } catch (error) {
+        throw new ScreenshotError(
+            "Screenshot capture failed" + (error instanceof Error ? `: ${error.message}` : ""),
+            "SCREENSHOT_FAILED"
+        );
     } finally {
         if (browser) {
             await browser.close();

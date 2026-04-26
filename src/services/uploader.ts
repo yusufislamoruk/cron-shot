@@ -3,6 +3,7 @@ import { s3Client } from "../config/s3";
 import { AWS_S3_BUCKET, AWS_REGION } from "../config/env";
 import { UploadResult } from "../types";
 import { generateS3Key } from "../utils/storage";
+import { S3UploadError } from "../utils/errors";
 
 export const uploadScreenshot = async (buffer: Buffer): Promise<UploadResult> => {
     const timestamp = Date.now();
@@ -26,6 +27,9 @@ export const uploadScreenshot = async (buffer: Buffer): Promise<UploadResult> =>
         };        
     } catch (error) {
         console.error("[uploader] S3 upload failed:", error);
-        throw error;
+        throw new S3UploadError(
+            "S3 upload failed" + (error instanceof Error ? `: ${error.message}` : ""),
+            "S3_UPLOAD_FAILED"
+        );
     }
 }

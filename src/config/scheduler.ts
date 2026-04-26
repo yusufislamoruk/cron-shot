@@ -1,0 +1,1 @@
+export const SCHEDULER_INTERVAL_MS = 60000; // Check every 60 seconds

@@ -1,5 +1,3 @@
-import { ScreenshotRecord } from "../types";
-
 interface WebhookPayload {
     screenshot_id: string;
     s3_url: string;
@@ -16,6 +14,7 @@ export async function sendWebhook(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(10000),
         });
 
         if (!response.ok) {

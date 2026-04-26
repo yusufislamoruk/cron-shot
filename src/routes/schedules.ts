@@ -23,6 +23,9 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const { url, schedule, webhook_url, width, height, full_page, user_agent, authorization_header, cookies } = validation.data;
 
+    // Compute next_run before insert so it's included in the response
+    const nextRun = getNextRunTime(schedule);
+
     const { data: record, error } = await supabase
         .from("schedules")
         .insert({
@@ -37,6 +40,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
             authorization_header,
             cookies,
             active: true,
+            next_run: nextRun.toISOString(),
         })
         .select()
         .single();
@@ -47,21 +51,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
         return;
     }
 
-    // Compute and set initial next_run
-    const nextRun = getNextRunTime(schedule);
-    await supabase
-        .from("schedules")
-        .update({ next_run: nextRun.toISOString() })
-        .eq("id", record.id);
-
-    // Refetch to get updated next_run
-    const { data: updated } = await supabase
-        .from("schedules")
-        .select("*")
-        .eq("id", record.id)
-        .single();
-
-    res.status(201).json({ success: true, data: updated || record });
+    res.status(201).json({ success: true, data: record });
 });
 
 // GET /schedules — List user's schedules

@@ -5,6 +5,7 @@ import { errorResponse } from "../utils/response";
 import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
 import { getAuth } from "@clerk/express";
+import { withRetry } from "../utils/retry";
 
 const router = Router();
 
@@ -22,17 +23,19 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
 
     const {url,width,height,fullPage,userAgent,authorizationHeader,cookies} = validation.data;
     try {
-        const buffer = await takeScreenshot({
-            url,
-            fullPage: fullPage,
-            width: width,
-            height: height,
-            userAgent: userAgent,
-            authorizationHeader: authorizationHeader,
-            cookies: cookies,
-        });
-        
-        const upload = await uploadScreenshot(buffer);
+        const buffer = await withRetry(() =>
+            takeScreenshot({
+                url,
+                fullPage: fullPage,
+                width: width,
+                height: height,
+                userAgent: userAgent,
+                authorizationHeader: authorizationHeader,
+                cookies: cookies,
+            })
+        );
+
+        const upload = await withRetry(() => uploadScreenshot(buffer));
 
         const record = await recordScreenshot({
             target_url: url,

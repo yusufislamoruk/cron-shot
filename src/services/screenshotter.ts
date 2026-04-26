@@ -37,7 +37,7 @@ export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer
         if(cookies){
             const cookieArray = parseCookies(cookies, url);
             if(cookieArray.length > 0){
-                await page.browserContext().setCookie(...cookieArray);
+                await page.setCookie(...cookieArray);
             }
         }
         await page.goto(url, {

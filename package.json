@@ -20,7 +20,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "puppeteer": "^24.38.0"
+    "puppeteer": "^24.38.0",
+    "openai": "^4.0.0",
+    "@sendgrid/mail": "^8.1.0",
+    "@clerk/backend": "^1.0.0",
+    "blockhash": "^0.2.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

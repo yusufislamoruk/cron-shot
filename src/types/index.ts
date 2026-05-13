@@ -42,4 +42,9 @@ export interface ScheduledJob {
     next_run_at: string;
     is_active: boolean;
     created_at: string;
+    user_email?: string | null;
+    alert_on_change?: boolean;
+    last_screenshot_hash?: string | null;
+    last_screenshot_key?: string | null;
+    last_notified_at?: string | null;
 }

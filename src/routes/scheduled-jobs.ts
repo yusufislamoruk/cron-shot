@@ -53,6 +53,7 @@ router.get('/', async (req,res) => {
     .order('next_run_at', { ascending: true});
 
     if (error) return res.status(500).json({ error: error.message});
+    res.json(data);
 });
 
 export default router;

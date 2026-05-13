@@ -4,15 +4,15 @@ export function calculateNextRunAt(frequency: ScheduledJob['frequency'],timeOfDa
     const [hours, minutes] = timeOfDay.split(':').map(Number);
     const now = new Date();
     
-    const offsetMs = -(timezoneOffset * 60 * 60 * 1000);
-    const next = new Date(now.getTime() + offsetMs);
-    next.setHours(hours,minutes,0,0);
+    const desiredUtcHours = hours - timezoneOffset;
+    const next = new Date(now);
+    next.setUTCHours(desiredUtcHours,minutes,0,0);
 
     if(next <= now ) {
         switch (frequency) {
-            case 'daily': next.setDate(next.getDate() + 1); break;
-            case 'weekly': next.setDate(next.getDate() + 7); break;
-            case 'monthly': next.setDate(next.getDate() + 30); break;
+            case 'daily': next.setUTCDate(next.getUTCDate() + 1); break;
+            case 'weekly': next.setUTCDate(next.getUTCDate() + 7); break;
+            case 'monthly': next.setUTCDate(next.getUTCDate() + 30); break;
         }
     }
 

@@ -10,14 +10,14 @@ router.post('/', async (req,res) => {
     const { userId } = getAuth(req);   
     if(!userId) return res.status(401).json({error: 'Unauthorized'});
 
-    const { target_url, width, height, full_page, user_agent, authorization_header, cookies, frequency, time_of_day} = req.body;
+    const { target_url, width, height, full_page, user_agent, authorization_header, cookies, frequency, time_of_day, timezone_offset} = req.body;
     if(!target_url || !frequency || !time_of_day) return res.status(400).json({error: 'Missing required fields'});
 
-    const next_run_at = calculateNextRunAt(frequency,time_of_day);
+    const next_run_at = calculateNextRunAt(frequency,time_of_day,timezone_offset);
     
     const { data, error } = await supabase
     .from('scheduled_jobs')
-    .insert({ user_id: userId, target_url, width, height, full_page, user_agent, authorization_header, cookies, frequency, time_of_day, next_run_at: next_run_at.toISOString()})
+    .insert({ user_id: userId, target_url, width, height, full_page, user_agent, authorization_header, cookies, frequency, time_of_day, next_run_at: next_run_at.toISOString(), timezone_offset})
     .select()
     .single();
 

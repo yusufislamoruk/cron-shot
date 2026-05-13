@@ -4,7 +4,7 @@ export function calculateNextRunAt(frequency: ScheduledJob['frequency'],timeOfDa
     const [hours, minutes] = timeOfDay.split(':').map(Number);
     const now = new Date();
     
-    const offsetMs = (timezoneOffset * 60 * 60 * 1000);
+    const offsetMs = -(timezoneOffset * 60 * 60 * 1000);
     const next = new Date(now.getTime() + offsetMs);
     next.setHours(hours,minutes,0,0);
 

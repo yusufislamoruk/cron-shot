@@ -40,7 +40,9 @@ router.delete('/:id', async (req,res) => {
 });
 
 router.get('/', async (req,res) => {
+    console.log('GET /scheduled-jobs called');
     const { userId } = getAuth(req);
+    console.log('userId:', userId);
     if(!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { data, error} = await supabase

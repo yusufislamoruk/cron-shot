@@ -48,3 +48,11 @@ export interface ScheduledJob {
     last_screenshot_key?: string | null;
     last_notified_at?: string | null;
 }
+
+export interface ChangeAlertParams {
+    to: string;
+    jobId: string;
+    targetUrl: string;
+    summary: string;
+    screenshotUrl: string;
+}

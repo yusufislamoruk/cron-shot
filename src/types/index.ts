@@ -56,3 +56,8 @@ export interface ChangeAlertParams {
     summary: string;
     screenshotUrl: string;
 }
+
+export interface AuthUser {
+    id: string;
+    email: string;
+}

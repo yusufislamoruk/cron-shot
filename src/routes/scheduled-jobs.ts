@@ -1,14 +1,13 @@
 import { Router } from 'express';
-import { getAuth } from '@clerk/express';
 import { createClient } from '@supabase/supabase-js';
 import { calculateNextRunAt } from '../utils/scheduling';
-import { getUserEmail } from '../services/userEmail';
+import { verifyToken } from '../middleware/auth';
 
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-router.post('/', async (req, res) => {
-    const { userId } = getAuth(req);
+router.post('/', verifyToken, async (req, res) => {
+    const userId = req.user!.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { target_url, width, height, full_page, user_agent, authorization_header, cookies, frequency, time_of_day, timezone_offset } = req.body;
@@ -38,19 +37,11 @@ router.post('/', async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    const email = await getUserEmail(userId);
-    if (email) {
-        await supabase
-            .from('scheduled_jobs')
-            .update({ user_email: email })
-            .eq('id', job.id);
-    }
-
     res.json(job);
 });
 
-router.patch('/:id', async (req, res) => {
-    const { userId } = getAuth(req);
+router.patch('/:id',verifyToken, async (req, res) => {
+    const userId = req.user!.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { alert_on_change, user_email } = req.body;
@@ -78,8 +69,8 @@ router.patch('/:id', async (req, res) => {
     res.json({ success: true });
 });
 
-router.delete('/:id', async (req, res) => {
-    const { userId } = getAuth(req);
+router.delete('/:id',verifyToken, async (req, res) => {
+    const userId= req.user!.id
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { error } = await supabase
@@ -92,8 +83,8 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true });
 });
 
-router.get('/', async (req, res) => {
-    const { userId } = getAuth(req);
+router.get('/',verifyToken, async (req, res) => {
+    const userId = req.user!.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { data, error } = await supabase

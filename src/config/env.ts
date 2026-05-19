@@ -11,6 +11,8 @@ export const AWS_S3_BUCKET = process.env.AWS_S3_BUCKET || "cron-shot-2026";
 
 export const SUPABASE_URL = process.env.SUPABASE_URL || "";
 export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+export const JWT_SECRET = process.env.JWT_SECRET || "";
+export const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 
 export const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
 export const FROM_EMAIL = process.env.FROM_EMAIL || "alerts@cronshot.io";

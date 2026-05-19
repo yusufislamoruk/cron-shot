@@ -19,5 +19,6 @@ app.get("/health", (_req, res) => {
 
 app.use("/scheduled-jobs", scheduledJobsRouter);
 app.use("/auth", authRouter);
+app.use("/screenshot", require("./routes/screenshot").default);
 
 export default app;

@@ -17,4 +17,3 @@ export const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 export const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
 export const FROM_EMAIL = process.env.FROM_EMAIL || "alerts@cronshot.io";
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-export const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY || "";

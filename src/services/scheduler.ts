@@ -45,7 +45,7 @@ export async function runScheduler() {
                 cookies_used: !!job.cookies
             });
 
-            const next_run_at = calculateNextRunAt(job.frequency, job.time_of_day);
+            const next_run_at = calculateNextRunAt(job.frequency, job.time_of_day, job.timezone_offset);
             await supabase
                 .from('scheduled_jobs')
                 .update({ next_run_at: next_run_at.toISOString() })

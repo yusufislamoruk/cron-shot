@@ -49,7 +49,7 @@ export function setAuthCookie(
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 3600, // 1 hour
+        maxAge: 3600 * 1000, // 1 hour
      });
      res.cookie('sb-refresh-token', refresh_token, {
         httpOnly: true,

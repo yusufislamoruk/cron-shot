@@ -4,12 +4,12 @@ import { validateScreenshotOptions } from "../validators/screenshot-validator";
 import { errorResponse } from "../utils/response";
 import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
-import { getAuth } from "@clerk/express";
+import { verifyToken } from "../middleware/auth";
 
 const router = Router();
 
-router.post("/", async (req: Request, res: Response): Promise<void> => {
-    const { userId } = getAuth(req);
+router.post("/", verifyToken, async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
 
     const validation = validateScreenshotOptions(req.body);
 

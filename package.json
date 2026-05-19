@@ -14,8 +14,6 @@
   "type": "commonjs",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1010.0",
-    "@clerk/backend": "^1.0.0",
-    "@clerk/express": "^2.0.4",
     "@sendgrid/mail": "^8.1.0",
     "@supabase/supabase-js": "^2.106.0",
     "@types/cors": "^2.8.19",

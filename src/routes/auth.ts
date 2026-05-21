@@ -73,6 +73,33 @@ router.post('/logout', async (_req: Request, res: Response) =>{
     return res.json({ message: 'Logged out successfully' });
 });
 
+// POST /auth/forgot-password
+router.post('/forgot-password', async (req: Request, res: Response) =>{
+    const { email } = req.body;
+
+    if(!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Invalid email format '});
+    }
+
+    try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password`,
+        });
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        return res.json({ message: 'Password reset email sent. Check your inbox.' });
+    } catch (err) {
+        console.error('[auth/forgot-password]', err);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
+});
 //GET /auth/me
 router.get('/me', async (req:Request, res:Response) =>{
     const authHeader = req.headers.authorization;

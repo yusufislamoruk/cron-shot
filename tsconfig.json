@@ -6,7 +6,10 @@
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "blockhash": ["./src/types/blockhash.d.ts"]
+    }
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

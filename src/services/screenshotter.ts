@@ -44,7 +44,11 @@ export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer
             waitUntil: "networkidle2",
             timeout: DEFAULT_TIMEOUT
         })
+        await page.waitForNavigation({waitUntil: 'networkidle2'}).catch(() =>{})
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
+        await page.waitForFunction(() => document.readyState === 'complete');
         const screenshot = await page.screenshot({
             type: "png",
             fullPage: fullPage

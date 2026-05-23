@@ -25,6 +25,7 @@ export interface ScreenshotRecord {
     user_agent?: string;
     authorization_header?: string;
     cookies_used?: boolean;
+    perceptual_hash?: string;
 };
 
 export interface ScheduledJob {

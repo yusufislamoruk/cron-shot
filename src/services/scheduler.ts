@@ -42,7 +42,8 @@ export async function runScheduler() {
                 s3_url,
                 user_agent: job.user_agent,
                 authorization_header: job.authorization_header,
-                cookies_used: !!job.cookies
+                cookies_used: !!job.cookies,
+                perceptual_hash: currentHash
             });
 
             const next_run_at = calculateNextRunAt(job.frequency, job.time_of_day, job.timezone_offset);

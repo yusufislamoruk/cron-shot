@@ -100,6 +100,33 @@ router.post('/forgot-password', async (req: Request, res: Response) =>{
         return res.status(500).json({ error: 'Internal server error.' });
     }
 });
+// POST /auth/reset-password
+router.post('/reset-password', async (req: Request, res: Response) => {
+    const { token, new_password } = req.body;
+
+    if(!token || !new_password) {
+        return res.status(400).json({ error: "Token and new password are required" });
+    }
+
+    if(new_password.length < 8){
+        return res.status(400).json({ error: 'Password must be at least 8 characters.'})
+    }
+
+    try {
+        const { error: updateError } = await supabase.auth.admin.updateUserById(token, {
+            password: new_password,
+        });
+
+        if(updateError) {
+            return res.status(400).json({ error: 'Invalid or expired token' });
+        }
+
+        return res.json({ message: 'Password updated successfully' });
+    } catch (err) {
+        console.error('[auth/reset-password]', err);
+        return res.status(500).json({ error: 'Interval server error '});
+    }
+});
 //GET /auth/me
 router.get('/me', async (req:Request, res:Response) =>{
     const authHeader = req.headers.authorization;

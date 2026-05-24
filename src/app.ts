@@ -7,7 +7,7 @@ import authRouter from "./routes/auth";
 const app = express();
 
 app.use(cors({
-  origin: true,
+  origin: ['https://cron-shot-landing.vercel.app', 'http://localhost:3000'],
   credentials: true
 }));
 app.use(express.json());

@@ -5,6 +5,7 @@ import { errorResponse } from "../utils/response";
 import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
 import { verifyToken } from "../middleware/auth";
+import { computePerceptualHash } from "../services/imageHasher";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.post("/", verifyToken, async (req: Request, res: Response): Promise<void>
         });
         
         const upload = await uploadScreenshot(buffer);
+        const currentHash = await computePerceptualHash(buffer);
 
         const record = await recordScreenshot({
             target_url: url,
@@ -45,6 +47,7 @@ router.post("/", verifyToken, async (req: Request, res: Response): Promise<void>
             user_agent: userAgent,
             authorization_header: authorizationHeader,
             cookies_used: !!cookies,
+            perceptual_hash: currentHash,
         });
 
         res.status(201).json({

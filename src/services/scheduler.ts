@@ -57,11 +57,6 @@ export async function runScheduler() {
                 if (changeResult.hasChanged) {
                     console.log(`[scheduler] Change detected for job ${job.id}: ${changeResult.summary}`);
                 }
-
-                await supabase
-                    .from('scheduled_jobs')
-                    .update({ last_screenshot_hash: currentHash, last_screenshot_key: s3_key })
-                    .eq('id', job.id);
             }
         } catch (err) {
             console.error(`Scheduler error for job ${job.id}:`, err);

@@ -10,10 +10,18 @@ router.post('/', verifyToken, async (req, res) => {
     const userId = req.user!.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { target_url, width, height, full_page, user_agent, authorization_header, cookies, frequency, time_of_day, timezone_offset } = req.body;
+    const { target_url, width, height, full_page, user_agent, authorization_header, cookies, frequency, time_of_day, timezone_offset, user_email } = req.body;
     if (!target_url || !frequency || !time_of_day) return res.status(400).json({ error: 'Missing required fields' });
 
     const next_run_at = calculateNextRunAt(frequency, time_of_day, timezone_offset);
+
+    const { data: profile } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id',userId)
+    .single();
+
+    const email = user_email || profile?.email;
 
     const { data: job, error } = await supabase
         .from('scheduled_jobs')
@@ -30,7 +38,8 @@ router.post('/', verifyToken, async (req, res) => {
             time_of_day,
             next_run_at: next_run_at.toISOString(),
             timezone_offset,
-            alert_on_change: true
+            alert_on_change: true,
+            user_email: email
         })
         .select()
         .single();

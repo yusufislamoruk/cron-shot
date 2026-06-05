@@ -40,11 +40,10 @@ export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer
                 await page.browserContext().setCookie(...cookieArray);
             }
         }
-        await page.goto(url, {
-            waitUntil: "networkidle2",
-            timeout: DEFAULT_TIMEOUT
-        })
-        await page.waitForNavigation({waitUntil: 'networkidle2'}).catch(() =>{})
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {}),
+            page.goto(url, { waitUntil: "networkidle2", timeout: DEFAULT_TIMEOUT })
+        ]);
         
         await new Promise(resolve => setTimeout(resolve, 2000));
 

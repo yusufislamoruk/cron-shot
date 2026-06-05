@@ -53,7 +53,7 @@ export async function runScheduler() {
                 .eq('id', job.id);
 
             if (job.alert_on_change) {
-                const changeResult = await detectChange(job, screenshot, s3_key, s3_url);
+                const changeResult = await detectChange(job, screenshot, s3_key);
                 if (changeResult.hasChanged) {
                     console.log(`[scheduler] Change detected for job ${job.id}: ${changeResult.summary}`);
                 }

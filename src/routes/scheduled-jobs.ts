@@ -21,7 +21,9 @@ router.post('/', verifyToken, async (req, res) => {
     .eq('id',userId)
     .single();
 
-    const email = user_email || profile?.email;
+    const { data: authData } = await supabase.auth.admin.getUserById(userId);
+
+    const email = user_email || profile?.email || authData?.user?.email;
 
     const { data: job, error } = await supabase
         .from('scheduled_jobs')

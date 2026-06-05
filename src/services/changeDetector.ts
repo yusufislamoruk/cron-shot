@@ -2,7 +2,7 @@ import { supabase } from '../config/supabase';
 import { computePerceptualHash, imagesAreSimilar } from './imageHasher';
 import { analyzeChangeWithAI } from './aiAnalyzer';
 import { sendChangeAlert } from './emailService';
-import { fetchPreviousScreenshot } from './screenshotStore';
+import { fetchPreviousScreenshot, getScreenshotPresignedUrl} from './screenshotStore';
 import { ScheduledJob } from '../types';
 
 interface ChangeDetectionResult {
@@ -13,8 +13,7 @@ interface ChangeDetectionResult {
 export async function detectChange(
     job: ScheduledJob,
     currentBuffer: Buffer,
-    currentS3Key: string,
-    currentS3Url: string
+    currentS3Key: string
 ): Promise<ChangeDetectionResult> {
     if (!job.alert_on_change) {
         return { hasChanged: false };
@@ -40,12 +39,13 @@ export async function detectChange(
     }
 
     if (job.user_email) {
+        const signedUrl = await getScreenshotPresignedUrl(currentS3Key);
         await sendChangeAlert({
             to: job.user_email,
             jobId: job.id,
             targetUrl: job.target_url,
             summary,
-            screenshotUrl: currentS3Url,
+            screenshotUrl: signedUrl,
         });
     }
 

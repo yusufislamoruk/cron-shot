@@ -1,4 +1,6 @@
 import { Router, Request, Response } from "express";
+import { createClient } from "@supabase/supabase-js";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { takeScreenshot } from "../services/screenshotter";
 import { validateScreenshotOptions } from "../validators/screenshot-validator";
 import { errorResponse } from "../utils/response";
@@ -6,8 +8,11 @@ import { uploadScreenshot } from "../services/uploader";
 import { recordScreenshot } from "../services/recorder";
 import { verifyToken } from "../middleware/auth";
 import { computePerceptualHash } from "../services/imageHasher";
+import { s3Client } from "../config/s3";
+import { AWS_S3_BUCKET } from "../config/env";
 
 const router = Router();
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!); 
 
 router.post("/", verifyToken, async (req: Request, res: Response): Promise<void> => {
     const userId = req.user!.id;
@@ -63,6 +68,43 @@ router.post("/", verifyToken, async (req: Request, res: Response): Promise<void>
         const err = errorResponse("Failed to take screenshot", 500);
         res.status(500).json(err.body);
     }
+});
+
+router.delete("/:id", verifyToken, async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const { data: screenshot, error: fetchError} = await supabase
+        .from("screenshots")
+        .select("s3_key, user_id")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .single();
+
+    if (fetchError || !screenshot) {
+        res.status(404).json({ error: "Screenshot not found"});
+        return;
+    }
+
+    if (screenshot.s3_key) {
+        await s3Client.send(new DeleteObjectCommand({
+            Bucket: AWS_S3_BUCKET,
+            Key: screenshot.s3_key
+        }));
+    }
+
+    const {error: deleteError} = await supabase
+        .from("screenshots")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId);
+
+    if (deleteError) {
+        res.status(500).json({ error: deleteError.message || "Failed to delete screenshot"});
+        return;
+    }
+
+    res.json({ success: true});
 });
 
 export default router;

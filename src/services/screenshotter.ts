@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page } from "puppeteer";
+import puppeteer, { Browser, Page, HTTPRequest } from "puppeteer";
 import { PUPPETEER_LAUNCH_OPTIONS, DEFAULT_VIEWPORT, DEFAULT_TIMEOUT } from "../config/puppeteer";
 import { ScreenshotOptions } from "../types";
 import { parseCookies } from "../utils/parseCookies";
@@ -8,107 +8,102 @@ import { parseCookies } from "../utils/parseCookies";
 interface ConsentFramework {
   name: string;
   acceptSelectors: string[];
-  cookiePatterns?: Array<{ name: RegExp; acceptedValue: string }>;
+  cookiePatterns?: Array<{ name: string; value: string }>;
+  storageKeys?: Array<{ key: string; value: string }>;
 }
 
-// ─── Known framework definitions ─────────────────────────────────────────────
+// ─── Framework definitions ────────────────────────────────────────────────────
 
 const FRAMEWORKS: ConsentFramework[] = [
   {
+    name: 'Amazon',
+    acceptSelectors: ['#sp-cc-accept', 'input[data-cel-widget="sp-cc-accept"]'],
+    cookiePatterns: [{ name: 'sp-cdn', value: '"L5Z:tr"' }],
+  },
+  {
     name: 'OneTrust',
-    acceptSelectors: [
-      '#onetrust-accept-btn-handler',
-      '.onetrust-accept-btn-handler',
-      '#accept-recommended-btn-handler',
-    ],
+    acceptSelectors: ['#onetrust-accept-btn-handler', '.onetrust-accept-btn-handler'],
     cookiePatterns: [
-      { name: /OptanonAlertBoxClosed/, acceptedValue: new Date().toISOString() },
-      {
-        name: /OptanonConsent/,
-        acceptedValue:
-          'isGpcEnabled=0&datestamp=' +
-          encodeURIComponent(new Date().toISOString()) +
-          '&version=6.34.0&isIABGlobal=false&hosts=&consentId=&interactionCount=1&landingPath=&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1&geolocation=&AwaitingReconsent=false',
-      },
+      { name: 'OptanonAlertBoxClosed', value: new Date().toISOString() },
+      { name: 'OptanonConsent', value: 'isGpcEnabled=0&interactionCount=1&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1' },
     ],
   },
   {
     name: 'Cookiebot',
-    acceptSelectors: [
-      '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-      '#CybotCookiebotDialogBodyButtonAccept',
-      '.CybotCookiebotDialogBodyButton',
-    ],
+    acceptSelectors: ['#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll', '#CybotCookiebotDialogBodyButtonAccept'],
     cookiePatterns: [
-      {
-        name: /CookieConsent/,
-        acceptedValue:
-          '{stamp:%27-1%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:' +
-          Date.now() +
-          '%2Cregion:%27tr%27}',
-      },
+      { name: 'CookieConsent', value: `{stamp:'-1',necessary:true,preferences:true,statistics:true,marketing:true,ver:1,utc:${Date.now()}}` },
     ],
   },
   {
     name: 'TrustArc',
-    acceptSelectors: ['.trustarc-agree-btn', '#truste-consent-button', '.pdynamicbutton .call'],
+    acceptSelectors: ['.trustarc-agree-btn', '#truste-consent-button'],
+    cookiePatterns: [
+      { name: 'notice_gdpr_prefs', value: '0,1,2:' },
+      { name: 'notice_preferences', value: '2:' },
+      { name: 'cmapi_cookie_privacy', value: 'permit 1,2,3' },
+    ],
+  },
+  {
+    name: 'Didomi',
+    acceptSelectors: ['#didomi-notice-agree-button'],
+    cookiePatterns: [{ name: 'euconsent-v2', value: 'ACCEPT_ALL' }],
+    storageKeys: [{ key: 'didomi_consent', value: JSON.stringify({ purposes: { enabled: ['cookies', 'analytics', 'advertising'] } }) }],
   },
   {
     name: 'Osano',
     acceptSelectors: ['.osano-cm-accept-all', '.osano-cm-button--type_accept'],
-  },
-  {
-    name: 'Didomi',
-    acceptSelectors: [
-      '#didomi-notice-agree-button',
-      '[id^="didomi-notice-agree"]',
-      '.didomi-continue-without-agreeing',
-    ],
-    cookiePatterns: [{ name: /euconsent-v2/, acceptedValue: 'ACCEPT_ALL' }],
-  },
-  {
-    name: 'Civic Cookie Control',
-    acceptSelectors: ['#ccc-notify-accept', '#ccc-accept-button', '.ccc-notify-link'],
-  },
-  {
-    name: 'Cookie Notice',
-    acceptSelectors: ['.cn-set-cookie', '#cookie-notice-accept-button'],
-  },
-  {
-    name: 'GDPR Cookie Consent',
-    acceptSelectors: ['#cookie_action_close_header', '.gdpr-cookie-accept'],
-  },
-  {
-    name: 'Wix',
-    acceptSelectors: ['[data-testid="cookie-policy-dialog-accept-button"]'],
+    storageKeys: [{ key: 'osano_consentmanager', value: 'ACCEPT_ALL' }],
   },
   {
     name: 'Usercentrics',
-    acceptSelectors: [
-      '[data-testid="uc-accept-all-button"]',
-      '#usercentrics-root', // shadow DOM — handled separately below
-    ],
+    acceptSelectors: [], // shadow DOM only
+    storageKeys: [{ key: 'uc_settings', value: JSON.stringify({ ccm: { version: 2, consent: true } }) }],
   },
   {
     name: 'Quantcast',
-    acceptSelectors: ['.qc-cmp2-summary-buttons button:last-child', '[mode="primary"]'],
+    acceptSelectors: ['.qc-cmp2-summary-buttons button:last-child'],
+    cookiePatterns: [{ name: '__qca', value: 'ACCEPTED' }],
   },
   {
-    name: 'Generic (cc-cookie)',
-    acceptSelectors: ['.cc-btn.cc-allow', '.cc-accept', '#js-agree-btn', '.js-accept-cookies'],
+    name: 'Civic',
+    acceptSelectors: ['#ccc-notify-accept', '#ccc-accept-button'],
+    storageKeys: [{ key: 'CookieControl', value: JSON.stringify({ necessaryCookies: [], optionalCookies: { analytics: 'on', marketing: 'on' } }) }],
+  },
+  {
+    name: 'Generic',
+    acceptSelectors: [
+      '.cc-btn.cc-allow', '.cc-accept',
+      '#js-agree-btn', '.js-accept-cookies',
+      '#cookie_action_close_header', '.gdpr-cookie-accept',
+      '#cookie-notice-accept-button', '.cn-set-cookie',
+      '[data-testid="cookie-policy-dialog-accept-button"]',
+    ],
   },
 ];
 
-// ─── Keywords for safe text matching ─────────────────────────────────────────
+// ─── URL patterns whose responses we block entirely ──────────────────────────
+// These are consent-manager JS bundles. Blocking them prevents the banner
+// from being injected into the DOM in the first place.
+
+const BLOCKED_CONSENT_URLS: RegExp[] = [
+  // Only block when the site doesn't need the bundle to function —
+  // i.e. we've already set the cookies/storage above.
+  // We block conservatively: only clear third-party consent CDNs.
+  /cdn\.cookielaw\.org\/consent\//,
+  /consent\.cookiebot\.com\/uc\.js/,
+  /cdn\.privacy-mgmt\.com/,
+  /quantcast\.mgr\.consensu\.org/,
+];
+
+// ─── Accept keywords for universal text fallback ──────────────────────────────
 
 const ACCEPT_KEYWORDS = [
   // Turkish
-  'tümünü kabul et', 'hepsini kabul et', 'kabul et', 'kabul ediyorum',
-  'tüm çerezleri kabul et', 'çerezleri kabul et',
+  'tümünü kabul et', 'hepsini kabul et', 'kabul et', 'kabul ediyorum', 'çerezleri kabul et',
   // English
   'accept all', 'accept all cookies', 'allow all', 'allow all cookies',
-  'i accept', 'i agree', 'agree to all', 'got it', 'ok, i agree',
-  'consent to all', 'yes, i accept',
+  'i accept', 'i agree', 'agree to all', 'got it', 'yes, i accept',
   // German
   'alle akzeptieren', 'zustimmen', 'akzeptieren',
   // French
@@ -121,15 +116,22 @@ const ACCEPT_KEYWORDS = [
   'zaakceptuj wszystkie', 'akceptuję',
   // Dutch
   'alles accepteren', 'accepteer alles',
+  // Portuguese
+  'aceitar tudo', 'aceitar todos',
+  // Romanian
+  'acceptați toate',
+  // Czech
+  'přijmout vše', 'souhlasím',
+  // Swedish
+  'acceptera alla', 'godkänn alla',
 ];
 
-// Never click buttons containing these strings (false-positive guard)
 const NEGATIVE_KEYWORDS = [
-  'manage', 'settings', 'preferences', 'customize', 'reject', 'decline',
+  'manage', 'settings', 'preferences', 'customize', 'customise', 'reject', 'decline',
+  'necessary only', 'essential only', 'refuse', 'deny',
   'ayarlar', 'tercihleri', 'reddet', 'yönet', 'özelleştir',
-  'privacy policy', 'learn more', 'more info', 'details',
-  'gizlilik', 'daha fazla', 'newsletter', 'subscribe', 'sign up',
-  'log in', 'register', 'purchase', 'buy', 'checkout',
+  'privacy policy', 'learn more', 'more info', 'cookie policy',
+  'gizlilik', 'daha fazla', 'subscribe', 'sign up', 'log in', 'purchase',
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -138,11 +140,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Returns true if an element matching the selector exists and is visible in
- * the viewport. Uses Puppeteer's built-in boundingBox check — if the box is
- * null the element is hidden or detached.
- */
 async function isVisible(page: Page, selector: string): Promise<boolean> {
   try {
     const el = await page.$(selector);
@@ -154,333 +151,283 @@ async function isVisible(page: Page, selector: string): Promise<boolean> {
   }
 }
 
-/**
- * Clicks an element inside a shadow DOM host.
- * Puppeteer cannot pierce shadow roots with normal selectors, so we drop into
- * page.evaluate and traverse the shadowRoot manually.
- */
-async function clickInShadowDOM(
-  page: Page,
-  hostSelector: string,
-  innerSelector: string
-): Promise<boolean> {
+async function clickInShadowDOM(page: Page, hostSelector: string, innerSelector: string): Promise<boolean> {
   try {
-    return await page.evaluate(
-      (host, inner) => {
-        const hostEl = document.querySelector(host);
-        if (!hostEl || !hostEl.shadowRoot) return false;
-        const btn = hostEl.shadowRoot.querySelector(inner) as HTMLElement | null;
-        if (!btn) return false;
-        btn.click();
-        return true;
-      },
-      hostSelector,
-      innerSelector
-    );
+    return await page.evaluate((host, inner) => {
+      const hostEl = document.querySelector(host);
+      if (!hostEl?.shadowRoot) return false;
+      const btn = hostEl.shadowRoot.querySelector(inner) as HTMLElement | null;
+      if (!btn) return false;
+      btn.click();
+      return true;
+    }, hostSelector, innerSelector);
   } catch {
     return false;
   }
 }
 
-// ─── Layer 1: Write consent cookies directly via CDP ─────────────────────────
+// ─── Strategy 1: Block consent manager bundles at network level ───────────────
+// Intercept requests before they reach the page. If a URL matches a known
+// consent CDN pattern, return an empty 200 response instead of loading the
+// bundle. The banner is never injected because its JS never ran.
 
-/**
- * Some frameworks (OneTrust, Cookiebot) only check the presence of a consent
- * cookie. Setting it before the page renders prevents the banner from appearing
- * at all — the cleanest and fastest approach.
- *
- * Puppeteer exposes CDP via page.createCDPSession(); we use the
- * Network.setCookie command directly instead of document.cookie so the cookie
- * is set at the browser level and survives cross-origin navigations.
- */
-async function trySetConsentCookiesViaCDP(page: Page, url: string): Promise<boolean> {
+export function enableConsentRequestBlocking(page: Page): void {
+  page.on('request', (req: HTTPRequest) => {
+    const url = req.url();
+    if (BLOCKED_CONSENT_URLS.some(pattern => pattern.test(url))) {
+      console.log(`[Cookie] Blocked consent bundle: ${url}`);
+      req.respond({ status: 200, body: '' });
+    } else {
+      req.continue();
+    }
+  });
+}
+
+// ─── Strategy 2: Set consent cookies + localStorage before navigation ─────────
+// The page reads these on load and skips showing the banner entirely.
+// This is the most reliable approach for framework-aware sites.
+
+export async function injectConsentState(page: Page, url: string): Promise<void> {
   const origin = new URL(url).origin;
   const client = await page.createCDPSession();
-  let count = 0;
 
   try {
-    for (const framework of FRAMEWORKS) {
-      if (!framework.cookiePatterns) continue;
-      for (const pattern of framework.cookiePatterns) {
-        const name = pattern.name.source.replace(/[^a-zA-Z0-9_-]/g, '');
+    // Set cookies via CDP (survives cross-origin navigations)
+    for (const fw of FRAMEWORKS) {
+      if (!fw.cookiePatterns) continue;
+      for (const { name, value } of fw.cookiePatterns) {
         await client.send('Network.setCookie', {
           name,
-          value: pattern.acceptedValue,
+          value,
           url: origin,
           path: '/',
           expires: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
         });
-        count++;
       }
     }
   } finally {
     await client.detach();
   }
 
-  return count > 0;
-}
+  // Pre-populate localStorage/sessionStorage via page script injection.
+  // We use Page.addScriptToEvaluateOnNewDocument so it runs before any
+  // site JS — the consent flag is already there when the site checks for it.
+  const storageScript = FRAMEWORKS
+    .flatMap(fw => fw.storageKeys ?? [])
+    .map(({ key, value }) =>
+      `try { localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(value)}); } catch(e) {}`
+    )
+    .join('\n');
 
-// ─── Layer 2: Click using known framework selectors ───────────────────────────
-
-async function tryKnownSelectors(page: Page): Promise<boolean> {
-  for (const framework of FRAMEWORKS) {
-    for (const selector of framework.acceptSelectors) {
-      // Special case: Usercentrics renders inside a shadow root
-      if (selector === '#usercentrics-root') {
-        const clicked = await clickInShadowDOM(
-          page,
-          '#usercentrics-root',
-          '[data-testid="uc-accept-all-button"]'
-        );
-        if (clicked) {
-          console.log(`[Cookie] ${framework.name} (shadow DOM) — clicked`);
-          return true;
-        }
-        continue;
-      }
-
-      if (await isVisible(page, selector)) {
-        try {
-          await page.click(selector);
-          console.log(`[Cookie] ${framework.name} — selector: ${selector}`);
-          return true;
-        } catch {
-          // This selector failed, try the next one
-        }
-      }
-    }
+  if (storageScript) {
+    await page.evaluateOnNewDocument(storageScript);
   }
-  return false;
 }
 
-// ─── Layer 3: Safe text-based matching ───────────────────────────────────────
+// ─── Strategy 3: waitForSelector race — click the first visible button ────────
+// Unlike a blind sleep(), this waits precisely until a banner element appears
+// and immediately acts. Times out gracefully if no banner shows up.
 
-async function tryTextMatching(page: Page): Promise<boolean> {
-  return await page.evaluate(
-    (acceptKeywords, negativeKeywords) => {
-      const candidates = Array.from(
-        document.querySelectorAll(
-          'button, a[role="button"], [role="button"], input[type="button"], input[type="submit"]'
-        )
-      ) as HTMLElement[];
+async function tryKnownSelectors(page: Page, timeoutMs = 4000): Promise<boolean> {
+  const allSelectors = FRAMEWORKS.flatMap(fw => fw.acceptSelectors).filter(Boolean);
 
-      for (const el of candidates) {
-        // Skip invisible elements
-        const rect = el.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) continue;
-        const style = window.getComputedStyle(el);
-        if (
-          style.display === 'none' ||
-          style.visibility === 'hidden' ||
-          style.opacity === '0'
-        )
-          continue;
+  // Race all selectors simultaneously — first one wins
+  const winner = await Promise.race([
+    ...allSelectors.map(selector =>
+      page.waitForSelector(selector, { visible: true, timeout: timeoutMs })
+        .then(() => selector)
+        .catch(() => null)
+    ),
+    sleep(timeoutMs).then(() => null),
+  ]);
 
-        // Skip elements hidden from assistive technology
-        if (el.getAttribute('aria-hidden') === 'true') continue;
+  if (!winner) return false;
 
-        // Normalise text content
-        const text = (el.textContent ?? '').toLowerCase().trim().replace(/\s+/g, ' ');
-        if (!text || text.length > 60) continue; // Too long to be a consent button
-
-        // Negative filter: skip buttons that look like settings/reject actions
-        if (negativeKeywords.some(neg => text.includes(neg))) continue;
-
-        // Positive match: exact or prefix match against accept keywords
-        const isMatch = acceptKeywords.some(kw => text === kw || text.startsWith(kw));
-        if (isMatch) {
-          el.click();
-          return true;
-        }
-      }
-      return false;
-    },
-    ACCEPT_KEYWORDS,
-    NEGATIVE_KEYWORDS
-  );
+  try {
+    // Extra visibility check before clicking
+    if (!(await isVisible(page, winner))) return false;
+    await page.click(winner);
+    console.log(`[Cookie] Clicked known selector: ${winner}`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-// ─── Layer 4: Search inside iframes ──────────────────────────────────────────
+// ─── Strategy 4: Usercentrics shadow DOM ─────────────────────────────────────
 
-/**
- * Some consent managers (e.g. TrustArc) render their banner inside a
- * cross-origin iframe. Puppeteer exposes all frames via page.frames(), so we
- * iterate them and repeat the selector search in each one.
- */
+async function tryUsercentricsShawdowDOM(page: Page): Promise<boolean> {
+  return clickInShadowDOM(page, '#usercentrics-root', '[data-testid="uc-accept-all-button"]');
+}
+
+// ─── Strategy 5: iframe search ────────────────────────────────────────────────
+
 async function tryIframes(page: Page): Promise<boolean> {
-  const frames = page.frames();
-
-  for (const frame of frames) {
+  for (const frame of page.frames()) {
     if (frame === page.mainFrame()) continue;
-
     try {
-      for (const framework of FRAMEWORKS) {
-        for (const selector of framework.acceptSelectors) {
+      for (const fw of FRAMEWORKS) {
+        for (const selector of fw.acceptSelectors) {
           try {
             const el = await frame.$(selector);
             if (!el) continue;
-
-            // Puppeteer: check visibility via boundingBox inside the frame
             const box = await el.boundingBox();
-            if (!box || box.width === 0 || box.height === 0) continue;
-
+            if (!box || box.width === 0) continue;
             await el.click();
-            console.log(`[Cookie] ${framework.name} — found inside iframe`);
+            console.log(`[Cookie] Clicked in iframe: ${selector}`);
             return true;
-          } catch {
-            // Selector not found in this frame, continue
-          }
+          } catch { /* continue */ }
         }
       }
-    } catch {
-      // Frame is not accessible (cross-origin restriction), skip
-    }
+    } catch { /* cross-origin frame, skip */ }
   }
-
   return false;
 }
 
-// ─── Main function ────────────────────────────────────────────────────────────
+// ─── Strategy 6: Universal text matching (last resort) ────────────────────────
+// Scans all visible interactive elements for accept-like text.
+// Negative keyword filter prevents clicking settings/reject buttons.
+
+async function tryTextMatching(page: Page): Promise<boolean> {
+  return page.evaluate((acceptKws, negativeKws) => {
+    const candidates = Array.from(document.querySelectorAll(
+      'button, a[role="button"], [role="button"], input[type="button"], input[type="submit"]'
+    )) as HTMLElement[];
+
+    for (const el of candidates) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+      if (el.getAttribute('aria-hidden') === 'true') continue;
+
+      // Must be inside a dialog/banner-like container to avoid clicking
+      // unrelated "agree" buttons elsewhere on the page
+      const isInsideBanner = el.closest([
+        '[class*="cookie"]', '[class*="consent"]', '[class*="gdpr"]',
+        '[class*="banner"]', '[class*="notice"]', '[class*="modal"]',
+        '[id*="cookie"]', '[id*="consent"]', '[id*="gdpr"]',
+        '[role="dialog"]', '[role="alertdialog"]',
+      ].join(',')) !== null;
+
+      if (!isInsideBanner) continue;
+
+      const text = (el.textContent ?? '').toLowerCase().trim().replace(/\s+/g, ' ');
+      if (!text || text.length > 80) continue;
+      if (negativeKws.some(kw => text.includes(kw))) continue;
+      if (acceptKws.some(kw => text === kw || text.startsWith(kw))) {
+        el.click();
+        return true;
+      }
+    }
+    return false;
+  }, ACCEPT_KEYWORDS, NEGATIVE_KEYWORDS);
+}
+
+// ─── Main dismiss function ────────────────────────────────────────────────────
 
 export async function dismissCookieBanners(
   page: Page,
-  url: string,
   options: { maxRetries?: number; retryDelay?: number } = {}
 ): Promise<void> {
-  const { maxRetries = 3, retryDelay = 800 } = options;
+  const { maxRetries = 3, retryDelay = 600 } = options;
 
-  // Brief wait for lazy-loaded or animated banners
-  await sleep(600);
-
-  // Layers 2–4: Dismiss any visible banner, with retries
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const dismissed =
-        (await tryKnownSelectors(page)) ||
+        (await tryKnownSelectors(page, 3000)) ||
+        (await tryUsercentricsShawdowDOM(page)) ||
         (await tryIframes(page)) ||
         (await tryTextMatching(page));
 
       if (dismissed) {
-        await sleep(500); // Wait for close animation or redirect
+        await sleep(400);
         return;
       }
-    } catch {
-      // Unexpected error — try again on the next attempt
-    }
+    } catch { /* unexpected error — retry */ }
 
-    if (attempt < maxRetries) {
-      await sleep(retryDelay);
-    }
+    if (attempt < maxRetries) await sleep(retryDelay);
   }
-
-  // All layers exhausted — continue silently without throwing
 }
 
-// ─── Optional: watch for dynamically injected banners ────────────────────────
+// ─── Optional: MutationObserver watcher for SPA route changes ─────────────────
 
-/**
- * Some SPAs inject a consent banner after client-side navigation or a delayed
- * script load. This wrapper attaches a MutationObserver to the page and
- * re-runs the dismissal logic whenever the DOM changes.
- *
- * Puppeteer does not have a native "on DOM mutation" event, so we bridge the
- * observer into Node.js via page.exposeFunction + a polling fallback.
- *
- * Returns a cleanup function — call it when you no longer need the watcher.
- */
-export async function watchAndDismissBanners(
-  page: Page,
-  url: string
-): Promise<() => void> {
+export async function watchAndDismissBanners(page: Page): Promise<() => void> {
   let active = true;
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let debounce: ReturnType<typeof setTimeout> | null = null;
 
   const check = async () => {
     if (!active) return;
-    try {
-      await dismissCookieBanners(page, url, { maxRetries: 1, retryDelay: 300 });
-    } catch {
-      // Silent — page may have navigated away
-    }
+    try { await dismissCookieBanners(page, { maxRetries: 1, retryDelay: 200 }); } catch { /* silent */ }
   };
 
-  // Expose a Node.js callback that the in-page observer can call
-  await page.exposeFunction('__onCookieBannerMutation', () => {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(check, 400); // debounce rapid DOM bursts
+  await page.exposeFunction('__cookieBannerMutation', () => {
+    if (debounce) clearTimeout(debounce);
+    debounce = setTimeout(check, 350);
   });
 
-  // Install the MutationObserver in the page
   await page.evaluate(() => {
-    const obs = new MutationObserver(() => {
-      (window as any).__onCookieBannerMutation();
-    });
-    obs.observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(() => (window as any).__cookieBannerMutation())
+      .observe(document.body, { childList: true, subtree: true });
   });
 
-  // Initial run before any mutations fire
   await check();
 
-  // Return a teardown function
   return () => {
     active = false;
-    if (debounceTimer) clearTimeout(debounceTimer);
+    if (debounce) clearTimeout(debounce);
   };
 }
 
+// ─── Screenshot function ──────────────────────────────────────────────────────
 
 export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer> {
-    const {
-        url,
-        width = DEFAULT_VIEWPORT.width,
-        height = DEFAULT_VIEWPORT.height,
-        fullPage = false,
-        userAgent,
-        authorizationHeader,
-        cookies
-    } = options;
+  const {
+    url,
+    width = DEFAULT_VIEWPORT.width,
+    height = DEFAULT_VIEWPORT.height,
+    fullPage = false,
+    userAgent,
+    authorizationHeader,
+    cookies,
+  } = options;
 
-    let browser: Browser | undefined;
+  let browser: Browser | undefined;
 
-    try {
-        browser = await puppeteer.launch(PUPPETEER_LAUNCH_OPTIONS); 
+  try {
+    browser = await puppeteer.launch(PUPPETEER_LAUNCH_OPTIONS);
+    const page = await browser.newPage();
 
-        const page = await browser.newPage();
+    // Enable request interception for consent bundle blocking
+    await page.setRequestInterception(true);
+    enableConsentRequestBlocking(page);
 
-        await page.setViewport({ width, height })
+    await page.setViewport({ width, height });
 
-        if(userAgent){
-            await page.setUserAgent(userAgent);
-        }
-
-        if (authorizationHeader){
-            await page.setExtraHTTPHeaders({
-                Authorization: authorizationHeader
-            });
-        }
-
-        if(cookies){
-            const cookieArray = parseCookies(cookies, url);
-            if(cookieArray.length > 0){
-                await page.browserContext().setCookie(...cookieArray);
-            }
-        }
-        await trySetConsentCookiesViaCDP(page, url);
-
-        await page.goto(url, { waitUntil: "networkidle2", timeout: DEFAULT_TIMEOUT });
-
-        await dismissCookieBanners(page, url);
-        await sleep(2000); // Wait for any animations or lazy-loaded content
-        await page.waitForFunction(() => document.readyState === 'complete');
-        const screenshot = await page.screenshot({
-            type: "png",
-            fullPage: fullPage
-        })
-
-        return Buffer.from(screenshot);
-    } finally {
-        if (browser) {
-            await browser.close();
-        }
+    if (userAgent) await page.setUserAgent(userAgent);
+    if (authorizationHeader) {
+      await page.setExtraHTTPHeaders({ Authorization: authorizationHeader });
     }
+    if (cookies) {
+      const cookieArray = parseCookies(cookies, url);
+      if (cookieArray.length > 0) await page.browserContext().setCookie(...cookieArray);
+    }
+
+    // Strategy 1+2: inject consent state BEFORE navigation
+    await injectConsentState(page, url);
+
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: DEFAULT_TIMEOUT });
+
+    // Strategies 3–6: dismiss any banner that still appeared
+    await dismissCookieBanners(page);
+
+    await page.waitForFunction(() => document.readyState === 'complete');
+    await sleep(1000); // final settle for lazy-loaded content
+
+    const screenshot = await page.screenshot({ type: 'png', fullPage });
+    return Buffer.from(screenshot);
+  } finally {
+    if (browser) await browser.close();
+  }
 }
